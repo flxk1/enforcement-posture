@@ -11,7 +11,7 @@ arrives with no statement of the regime that produced it.
 
 This package is the missing statement. It computes and checks; it does not judge.
 
-Three semantics carry the design, and each is a refusal rather than a guess:
+Four semantics carry the design, and each is a refusal rather than a guess:
 
 * :func:`compare` returns :attr:`Change.INCOMPARABLE` — for a different engine, a
   different control set, a mode change with no caller-supplied order, or a change
@@ -23,6 +23,9 @@ Three semantics carry the design, and each is a refusal rather than a guess:
 * :func:`coverage` returns :attr:`Cover.UNCOVERED`, fail-closed, when any
   sub-interval of the window has no attested posture. Silence is not consent, and
   UNCOVERED outranks SPLIT.
+* :func:`exposure` books time it cannot rank against the baseline as
+  **indeterminate** rather than clean — including time with no attestation at
+  all. Only provably at-or-above-baseline time counts as enforcing.
 
 Closed I/O: canonical bytes and signatures are **injected**, never bundled — pass
 ``rfc8785.dumps`` and an Ed25519 ``sign`` / ``verify_sig``. The core is stdlib-only.
@@ -35,12 +38,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 #: in-toto predicate type minted by this package
 PREDICATE_TYPE = "https://flxk1.github.io/enforcement-posture/v0.1"
@@ -61,6 +64,8 @@ __all__ = [
     "Cover",
     "Segment",
     "Coverage",
+    "Episode",
+    "Exposure",
     "Finding",
     "Report",
     "PREDICATE_TYPE",
@@ -69,6 +74,7 @@ __all__ = [
     "posture_id",
     "compare",
     "coverage",
+    "exposure",
     "attest",
     "verify",
 ]
@@ -323,6 +329,122 @@ def coverage(
 
 def _iso(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+# --------------------------------------------------------------------------- #
+# exposure — how long enforcement ran below what was intended
+# --------------------------------------------------------------------------- #
+
+@dataclass(frozen=True)
+class Episode:
+    """A contiguous period spent below the baseline, and which controls were off.
+
+    ``end`` of ``None`` never occurs — :func:`exposure` closes every episode at
+    the explicit horizon rather than leaving one open, so a duration is always
+    computable.
+    """
+
+    start: str
+    end: str
+    posture_id: str
+    controls_off: tuple[str, ...]
+
+    @property
+    def seconds(self) -> float:
+        return (_ts(self.end) - _ts(self.start)).total_seconds()
+
+
+@dataclass(frozen=True)
+class Exposure:
+    """Time split three ways against an intended baseline.
+
+    The third bucket is the honest one. Time under a posture that is
+    :attr:`Change.INCOMPARABLE` to the baseline is **indeterminate**, not clean —
+    and so is time with no attested posture at all. Fail-closed: only time
+    provably at-or-above the baseline counts as clean.
+    """
+
+    at_or_above: float
+    weakened: float
+    indeterminate: float
+    episodes: tuple[Episode, ...]
+
+    @property
+    def total(self) -> float:
+        return self.at_or_above + self.weakened + self.indeterminate
+
+    @property
+    def clean_fraction(self) -> float:
+        """Share of observed time provably at or above baseline. ``0.0`` if no time."""
+        return self.at_or_above / self.total if self.total else 0.0
+
+
+def exposure(
+    baseline: Posture,
+    timeline: Iterable[Posture],
+    *,
+    since: str,
+    until: str,
+    canonicalize: Canonicalize,
+    mode_order: Mapping[str, Sequence[str]] | None = None,
+) -> Exposure:
+    """Measure time spent below an intended enforcement baseline.
+
+    The question governance never answers — *what fraction of the time did this
+    actually run with enforcement fully on?* — computed from the same attestations
+    :func:`attest` produces. A posture change is an escape hatch being opened or
+    closed, so a timeline of postures is a record of exactly that.
+
+    ``since``/``until`` are explicit because this package reads no clock: an
+    open-ended posture is closed at ``until``, and any part of the interval with
+    no posture counts as indeterminate, never as clean.
+    """
+    lo, hi = _ts(since), _ts(until)
+    if hi <= lo:
+        return Exposure(0.0, 0.0, 0.0, ())
+
+    clipped: list[tuple[datetime, datetime, Posture]] = []
+    for p in timeline:
+        p_start = _ts(p.effective_from)
+        p_end = _ts(p.effective_to) if p.effective_to is not None else hi
+        start, end = max(p_start, lo), min(p_end, hi)
+        if start < end:
+            clipped.append((start, end, p))
+    clipped.sort(key=lambda t: (t[0], t[1]))
+
+    at_or_above = weakened = indeterminate = 0.0
+    episodes: list[Episode] = []
+    cursor = lo
+
+    for start, end, p in clipped:
+        if start > cursor:  # unattested time is never clean
+            indeterminate += (start - cursor).total_seconds()
+        effective_start = max(start, cursor)
+        if effective_start >= end:  # fully swallowed by an overlapping earlier posture
+            continue
+        span = (end - effective_start).total_seconds()
+
+        verdict = compare(baseline, p, mode_order=mode_order)
+        if verdict in (Change.UNCHANGED, Change.HARDENED):
+            at_or_above += span
+        elif verdict is Change.WEAKENED:
+            weakened += span
+            off = tuple(
+                sorted(
+                    c.name
+                    for c in baseline.controls
+                    if c.enabled and (p.control(c.name) is None or not p.control(c.name).enabled)
+                )
+            )
+            episodes.append(Episode(_iso(effective_start), _iso(end), posture_id(p, canonicalize=canonicalize), off))
+        else:  # INCOMPARABLE — not clean, not a weakening we can name
+            indeterminate += span
+        cursor = max(cursor, end)
+
+    if cursor < hi:
+        indeterminate += (hi - cursor).total_seconds()
+
+    return Exposure(at_or_above, weakened, indeterminate, tuple(episodes))
 
 
 # --------------------------------------------------------------------------- #

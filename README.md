@@ -95,6 +95,54 @@ evidence is not lost: **narrow the window to a period with one regime and it ans
 difference between an evidence pack that averages over a change in enforcement and one that
 declines to.
 
+## Exposure — the number nobody publishes
+
+A posture change *is* an escape hatch being opened or closed, so a timeline of attestations is
+already a record of how often enforcement ran below what was intended. `exposure` reads it out:
+
+```python
+from enforcement_posture import Control, Posture, exposure
+
+intended = Posture(
+    engine="rvnd",
+    controls=(Control("folder_allowlist", True), Control("host_divergence", True, "hard-fail")),
+    effective_from="2026-03-01T00:00:00Z",
+)
+def at(frm, to=None, allowlist=True):
+    return Posture("rvnd",
+                   (Control("folder_allowlist", allowlist), Control("host_divergence", True, "hard-fail")),
+                   frm, to)
+
+timeline = [                                          # what actually ran
+    at("2026-03-01T00:00:00Z", "2026-03-11T00:00:00Z"),
+    at("2026-03-11T00:00:00Z", "2026-03-21T00:00:00Z", allowlist=False),   # switched off for a sprint
+    at("2026-03-21T00:00:00Z"),
+]
+
+result = exposure(intended, timeline,
+                  since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=dumps)
+
+print("ran fully enforcing:", round(result.clean_fraction, 3))
+print("weakened for:", result.weakened / 86400, "days")
+for episode in result.episodes:
+    print("  ", episode.start, "→", episode.end, "off:", episode.controls_off)
+```
+
+```
+ran fully enforcing: 0.667
+weakened for: 10.0 days
+   2026-03-11T00:00:00Z → 2026-03-21T00:00:00Z off: ('folder_allowlist',)
+```
+
+Time splits three ways, and **the third bucket is the honest one**: time under a posture
+`INCOMPARABLE` to the baseline — and time with no attestation at all — is `indeterminate`, never
+clean. Only time *provably* at or above baseline counts. An unranked mode downgrade lands in
+`indeterminate` until you supply a `mode_order`, at which point the same timeline reports it as a
+weakening; the tests pin both readings of the identical data.
+
+No clock is read: `since` and `until` are explicit, so an open-ended posture is closed at the
+horizon you name and the result is reproducible.
+
 ## What you attest
 
 A `Posture` is the engine, its named `Control`s (`enabled`, plus an optional graded `mode`), and

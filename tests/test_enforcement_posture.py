@@ -32,6 +32,7 @@ from enforcement_posture import (  # noqa: E402
     attest,
     compare,
     coverage,
+    exposure,
     posture_id,
     verify,
 )
@@ -211,6 +212,119 @@ class TestCoverage(unittest.TestCase):
     def test_inverted_window_is_uncovered(self):
         backwards = EvidenceWindow("chain:ws-1", "2026-03-31T00:00:00Z", "2026-03-01T00:00:00Z", "a" * 64)
         self.assertIs(coverage(backwards, [posture()], canonicalize=canon).status, Cover.UNCOVERED)
+
+
+class TestExposure(unittest.TestCase):
+    """How long did enforcement actually run below what was intended?
+
+    The question governance never answers, computed from posture attestations.
+    """
+
+    DAY = 86400.0
+
+    def test_a_month_fully_at_baseline_is_clean(self):
+        result = exposure(
+            posture(),
+            [posture()],
+            since="2026-03-01T00:00:00Z",
+            until="2026-03-31T00:00:00Z",
+            canonicalize=canon,
+        )
+        self.assertEqual(result.clean_fraction, 1.0)
+        self.assertEqual(result.weakened, 0.0)
+        self.assertEqual(result.episodes, ())
+
+    def test_a_weakened_stretch_is_measured_and_the_controls_are_named(self):
+        strict = posture(to="2026-03-11T00:00:00Z")
+        relaxed = posture(allowlist=False, frm="2026-03-11T00:00:00Z", to="2026-03-21T00:00:00Z")
+        restored = posture(frm="2026-03-21T00:00:00Z")
+        result = exposure(
+            posture(),
+            [strict, relaxed, restored],
+            since="2026-03-01T00:00:00Z",
+            until="2026-03-31T00:00:00Z",
+            canonicalize=canon,
+        )
+        self.assertEqual(result.weakened, 10 * self.DAY)
+        self.assertEqual(result.at_or_above, 20 * self.DAY)
+        self.assertEqual(result.indeterminate, 0.0)
+        self.assertAlmostEqual(result.clean_fraction, 2 / 3)
+        self.assertEqual(len(result.episodes), 1)
+        self.assertEqual(result.episodes[0].controls_off, ("folder_allowlist",))
+        self.assertEqual(result.episodes[0].seconds, 10 * self.DAY)
+
+    def test_a_hardened_posture_counts_as_at_or_above(self):
+        hardened = Posture(
+            "rvnd",
+            (Control("folder_allowlist", True), Control("host_divergence", True, "advisory"), Control("extra", True)),
+            "2026-03-01T00:00:00Z",
+        )
+        # Same control set as the baseline is required for comparability, so compare
+        # against a baseline that has the extra control switched off.
+        base = Posture(
+            "rvnd",
+            (Control("folder_allowlist", True), Control("host_divergence", True, "advisory"), Control("extra", False)),
+            "2026-03-01T00:00:00Z",
+        )
+        result = exposure(
+            base, [hardened],
+            since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon,
+        )
+        self.assertEqual(result.clean_fraction, 1.0)
+
+    def test_unattested_time_is_indeterminate_never_clean(self):
+        late = posture(frm="2026-03-11T00:00:00Z")
+        result = exposure(
+            posture(), [late],
+            since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon,
+        )
+        self.assertEqual(result.indeterminate, 10 * self.DAY)
+        self.assertAlmostEqual(result.clean_fraction, 2 / 3)
+
+    def test_no_attestations_at_all_is_wholly_indeterminate(self):
+        result = exposure(
+            posture(), [],
+            since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon,
+        )
+        self.assertEqual(result.clean_fraction, 0.0)
+        self.assertEqual(result.indeterminate, 30 * self.DAY)
+
+    def test_an_incomparable_posture_is_indeterminate_not_weakened(self):
+        """A different control set cannot be scored against the baseline either way."""
+        different = Posture("rvnd", (Control("something_else", True),), "2026-03-01T00:00:00Z")
+        result = exposure(
+            posture(), [different],
+            since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon,
+        )
+        self.assertEqual(result.weakened, 0.0)
+        self.assertEqual(result.indeterminate, 30 * self.DAY)
+        self.assertEqual(result.episodes, ())
+
+    def test_an_unranked_mode_downgrade_is_indeterminate_but_a_ranked_one_is_weakened(self):
+        downgraded = posture(divergence="off")
+        args = dict(since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon)
+        blind = exposure(posture(), [downgraded], **args)
+        informed = exposure(posture(), [downgraded], mode_order=MODES, **args)
+        self.assertEqual(blind.indeterminate, 30 * self.DAY)
+        self.assertEqual(informed.weakened, 30 * self.DAY)
+        self.assertEqual(informed.episodes[0].controls_off, ())  # a mode drop, not a disable
+
+    def test_an_open_ended_posture_is_closed_at_the_explicit_horizon(self):
+        """No clock is read; `until` is the horizon, so a duration is always computable."""
+        result = exposure(
+            posture(), [posture(allowlist=False)],
+            since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon,
+        )
+        self.assertEqual(result.weakened, 30 * self.DAY)
+        self.assertEqual(result.episodes[0].end, "2026-03-31T00:00:00Z")
+
+    def test_an_inverted_or_empty_horizon_yields_no_time(self):
+        for since, until in (("2026-03-31T00:00:00Z", "2026-03-01T00:00:00Z"),
+                             ("2026-03-01T00:00:00Z", "2026-03-01T00:00:00Z")):
+            with self.subTest(since=since, until=until):
+                result = exposure(posture(), [posture()], since=since, until=until, canonicalize=canon)
+                self.assertEqual(result.total, 0.0)
+                self.assertEqual(result.clean_fraction, 0.0)
 
 
 class TestAttestVerify(KeyMixin):
