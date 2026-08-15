@@ -366,6 +366,41 @@ class TestAttestVerify(KeyMixin):
         report = verify(self.restate(envelope, retype), canonicalize=canon, verify_sig=self.verify_sig)
         self.assertIn("unknown-predicate-type", {f.code for f in report.findings})
 
+    def test_the_signing_algorithm_is_recorded_and_recovered(self):
+        envelope = attest(posture(), WINDOW, canonicalize=canon, sign=self.sign, algorithm="ed25519")
+        report = verify(envelope, canonicalize=canon, verify_sig=self.verify_sig)
+        self.assertTrue(report.ok, report.findings)
+        self.assertEqual(report.algorithm, "ed25519")
+        self.assertTrue(report.algorithm_stated)
+
+    def test_the_algorithm_lives_inside_the_signed_payload_not_beside_keyid(self):
+        """DSSE's PAE does not cover the signature object, so an algorithm noted
+        there would be unauthenticated and strippable. Tampering with it must
+        break verification — that is the whole point of the placement."""
+        envelope = attest(posture(), WINDOW, canonicalize=canon, sign=self.sign, algorithm="ml-dsa-65")
+        self.assertNotIn("alg", envelope["signatures"][0])
+
+        statement = json.loads(base64.b64decode(envelope["payload"]))
+        self.assertEqual(statement["predicate"]["signing"]["algorithm"], "ml-dsa-65")
+
+        def downgrade(st):
+            st["predicate"]["signing"]["algorithm"] = "ed25519"
+
+        report = verify(self.restate(envelope, downgrade), canonicalize=canon, verify_sig=self.verify_sig)
+        self.assertFalse(report.ok)
+        self.assertIn("bad-signature", {f.code for f in report.findings})
+
+    def test_an_envelope_without_an_algorithm_stays_valid_and_says_so(self):
+        """Back-compatible: 0.2.0-shaped envelopes verify; they are just less durable."""
+        envelope = attest(posture(), WINDOW, canonicalize=canon, sign=self.sign)
+        statement = json.loads(base64.b64decode(envelope["payload"]))
+        self.assertNotIn("signing", statement["predicate"])
+
+        report = verify(envelope, canonicalize=canon, verify_sig=self.verify_sig)
+        self.assertTrue(report.ok, "an unstated algorithm is not a defect")
+        self.assertIsNone(report.algorithm)
+        self.assertFalse(report.algorithm_stated)
+
     def test_a_posture_asserting_no_controls_attests_nothing(self):
         empty = Posture("rvnd", (), "2026-01-01T00:00:00Z")
         report = verify(

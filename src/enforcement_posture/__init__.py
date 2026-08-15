@@ -43,7 +43,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 #: in-toto predicate type minted by this package
 PREDICATE_TYPE = "https://flxk1.github.io/enforcement-posture/v0.1"
@@ -464,13 +464,30 @@ def attest(
     canonicalize: Canonicalize,
     sign: Sign,
     keyid: str = "",
+    algorithm: str = "",
 ) -> dict[str, Any]:
-    """Emit a DSSE-wrapped in-toto Statement binding ``window`` to ``posture``."""
+    """Emit a DSSE-wrapped in-toto Statement binding ``window`` to ``posture``.
+
+    ``algorithm`` names the signature scheme (``"ed25519"``, ``"ml-dsa-65"``, …)
+    and is recorded **inside the signed payload**, not beside ``keyid`` in the
+    signature object. That placement is deliberate: DSSE's PAE covers only the
+    payload type and the payload, so an algorithm noted in the signature object
+    is unauthenticated and can be stripped or altered without breaking
+    verification. Evidence that must be re-checked years later, under a scheme
+    that may by then be broken, needs an *authentic* record of what signed it.
+
+    Omitting it is permitted and back-compatible — the envelope stays valid and
+    :attr:`Report.algorithm` is then ``None``, meaning a future verifier has to
+    learn the scheme out-of-band.
+    """
+    predicate: dict[str, Any] = {"posture": posture.to_dict(), "window": window.to_dict()}
+    if algorithm:
+        predicate["signing"] = {"algorithm": algorithm}
     statement = {
         "_type": STATEMENT_TYPE,
         "subject": [{"name": window.log_id, "digest": {"sha256": window.digest}}],
         "predicateType": PREDICATE_TYPE,
-        "predicate": {"posture": posture.to_dict(), "window": window.to_dict()},
+        "predicate": predicate,
     }
     payload = canonicalize(statement)
     signature = sign(_pae(PAYLOAD_TYPE, payload))
@@ -497,6 +514,18 @@ class Report:
     findings: tuple[Finding, ...]
     posture: Posture | None = None
     window: EvidenceWindow | None = None
+    algorithm: str | None = None
+
+    @property
+    def algorithm_stated(self) -> bool:
+        """Whether the envelope authentically records what signed it.
+
+        An envelope without it is **valid, and less durable** — the same shape as
+        an ungrounded rule: it makes no false claim, but a verifier re-checking it
+        after a scheme migration must learn the algorithm from somewhere else.
+        Reported, never a finding.
+        """
+        return self.algorithm is not None
 
 
 def verify(
@@ -558,6 +587,9 @@ def verify(
     except Exception as exc:
         return Report(False, tuple(findings) + (Finding("malformed-predicate", str(exc)),))
 
+    signing = statement["predicate"].get("signing") or {}
+    algorithm = signing.get("algorithm") or None
+
     if not posture.controls:
         findings.append(Finding("empty-posture", "a posture asserting no controls attests nothing"))
     if canonicalize(statement) != payload:
@@ -570,4 +602,4 @@ def verify(
     except ValueError as exc:
         findings.append(Finding("malformed-predicate", f"unparseable timestamp: {exc}"))
 
-    return Report(not findings, tuple(findings), posture, window)
+    return Report(not findings, tuple(findings), posture, window, algorithm)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-08-15
+
+Record the signature scheme **inside the signed payload** (`predicate.signing.algorithm`) rather
+than beside `keyid`, where DSSE's PAE would leave it unauthenticated and strippable. Evidence held
+under AI Act Art. 12's ten-year provider retention may be re-checked after the signing scheme has
+been broken, and retroactive forgeability makes an authentic record of *what signed it* load-bearing.
+`Report.algorithm` / `.algorithm_stated` surface it. Fully back-compatible: an envelope without it
+verifies as before and is simply reported as less durable — never a finding.
+
 ## 0.2.0 — 2026-08-15
 
 `exposure` — measure time spent below an intended enforcement baseline, computed from the same

@@ -150,6 +150,15 @@ the interval it was in force. `posture_id` content-addresses *what was enforcing
 excludes the interval — so re-attesting an unchanged posture after a restart reads as `covered`,
 not as a split.
 
+`attest(..., algorithm="ed25519")` records the signature scheme **inside the signed payload**,
+not beside `keyid` in the signature object. DSSE's PAE covers only the payload type and the
+payload, so an algorithm noted in the signature object is unauthenticated and can be stripped or
+altered without breaking verification. Evidence retained for ten years — AI Act Art. 12 obliges
+providers to keep logs that long — may need re-checking under a scheme that is by then broken,
+and that requires an *authentic* record of what signed it. Omitting it stays valid and
+back-compatible; `Report.algorithm_stated` is then `False`, meaning a future verifier has to learn
+the scheme out-of-band. Reported, never a finding.
+
 The envelope is a DSSE-wrapped **in-toto Statement**: the subject is the evidence body and its
 digest, the `predicateType` is `https://flxk1.github.io/enforcement-posture/v0.1`. It travels
 through any DSSE/Sigstore-aware pipeline unchanged.
@@ -158,6 +167,10 @@ through any DSSE/Sigstore-aware pipeline unchanged.
 
 - **Single signature.** One DSSE signature per envelope in this version; threshold/multi-sig is
   not modelled.
+- **The signature scheme is yours.** `sign`/`verify_sig` are injected, so migrating to a
+  post-quantum scheme is a caller change and needs nothing from this package — but this
+  package neither validates that `algorithm` matches what actually signed, nor re-signs an
+  archive across a migration. It records the claim; it does not enforce it.
 - **You supply canonicalisation and the key.** Pass an RFC 8785 canonicaliser (`rfc8785.dumps`)
   and an Ed25519 `sign`/`verify_sig`; the library bundles neither, by design (closed I/O).
 - **It attests a claim, it does not observe the engine.** The posture recorded is the one the
