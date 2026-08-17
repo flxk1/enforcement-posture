@@ -14,7 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 recommended = ["cryptography>=42.0", "rfc8785>=0.1.2"]
-test = ["pytest>=7", "cryptography>=42.0"]
+test = ["pytest>=7", "cryptography>=42.0", "rfc8785>=0.1.2", "securesystemslib>=1.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

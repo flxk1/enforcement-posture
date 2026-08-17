@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 from enforcement_posture import (  # noqa: E402
     PAYLOAD_TYPE,
     PREDICATE_TYPE,
+    STATEMENT_TYPE,
     Change,
     Control,
     Cover,
@@ -441,6 +442,47 @@ class TestAttestVerify(KeyMixin):
                 report = verify(envelope, canonicalize=canon, verify_sig=lambda b, s: True)
                 self.assertFalse(report.ok)
                 self.assertTrue(report.findings)
+
+
+
+class TestDSSEInterop(unittest.TestCase):
+    """The README claims interoperability with the DSSE ecosystem. This checks it
+    against securesystemslib — the in-toto/TUF reference implementation — rather
+    than against our own verifier, which would prove nothing.
+
+    Skips when the library is absent so the core suite stays dependency-free."""
+
+    def setUp(self):
+        try:
+            from securesystemslib.dsse import Envelope  # noqa: F401
+        except ImportError:
+            self.skipTest("securesystemslib not installed")
+
+    def test_a_third_party_implementation_parses_our_envelope(self):
+        from securesystemslib.dsse import Envelope
+
+        key = Ed25519PrivateKey.from_private_bytes(bytes(32))
+        envelope = attest(posture(), WINDOW, canonicalize=canon, sign=key.sign, algorithm="ed25519")
+
+        theirs = Envelope.from_dict(envelope)
+        self.assertEqual(theirs.payload_type, PAYLOAD_TYPE)
+
+        statement = json.loads(theirs.payload)
+        self.assertEqual(statement["_type"], STATEMENT_TYPE)
+        self.assertEqual(statement["predicateType"], PREDICATE_TYPE)
+
+    def test_their_pae_is_byte_identical_to_ours(self):
+        """The load-bearing check: PAE is what gets signed. If their
+        pre-authentication encoding differs from ours by one byte, every
+        signature we produce is unverifiable to the ecosystem."""
+        from securesystemslib.dsse import Envelope
+        from enforcement_posture import _pae
+
+        key = Ed25519PrivateKey.from_private_bytes(bytes(32))
+        envelope = attest(posture(), WINDOW, canonicalize=canon, sign=key.sign)
+        payload = base64.b64decode(envelope["payload"])
+
+        self.assertEqual(Envelope.from_dict(envelope).pae(), _pae(PAYLOAD_TYPE, payload))
 
 
 if __name__ == "__main__":
