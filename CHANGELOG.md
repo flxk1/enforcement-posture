@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.1 — 2026-08-17
+
+A defect found by **reading the code**, after the observation that no defect in this package has
+ever been found by its own test suite.
+
+`compare` read `weakens_when_enabled` from the *before* control only. When two postures disagreed
+about whether a control is an exemption, the disagreement was silently ignored — and
+`compare(a, b)` and `compare(b, a)` **both returned HARDENED**, which is incoherent for something
+documented as a partial order. 56 example tests were green.
+
+A polarity conflict is now INCOMPARABLE: the records are not describing the same control, and
+ranking them would mean preferring one record's claim over the other's.
+
+Added **property tests over the whole space** rather than more examples — exhaustive antisymmetry
+and reflexivity across every control the type can express (2,304 ordered pairs), plus the rule that
+postures sharing a `posture_id` must compare UNCHANGED. Example tests pass whenever the code
+matches the author's assumptions, which is why they never caught anything here.
+
 ## 0.5.0 — 2026-08-17
 
 `Control.weakens_when_enabled`, found by describing a second foreign engine.

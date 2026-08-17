@@ -1,6 +1,6 @@
 {
   "schema": "enforcement-posture-conformance/1",
-  "package_version": "0.5.0",
+  "package_version": "0.5.1",
   "note": "Language-agnostic conformance vectors. An implementation in any language conforms if it reproduces every `expect` from the corresponding `input`. The refusal cases \u2014 incomparable, split, uncovered \u2014 are the point: they are what a reimplementation gets wrong, and getting them wrong turns a refusal into a false assurance.",
   "vectors": [
     {
@@ -722,6 +722,35 @@
         }
       },
       "expect": "hardened"
+    },
+    {
+      "id": "compare-polarity-conflict-incomparable",
+      "note": "the two records assert different things about what the control IS; ranking that means picking one record's claim over the other's, and it made compare(a,b) and compare(b,a) both return hardened",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "c",
+              "enabled": true,
+              "weakens_when_enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "c",
+              "enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "incomparable"
     }
   ]
 }

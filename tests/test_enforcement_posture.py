@@ -243,6 +243,66 @@ class TestExemptions(unittest.TestCase):
                             posture_id(self.p(True, exempt=False), canonicalize=canon))
 
 
+class TestPartialOrderProperties(unittest.TestCase):
+    """Properties over the whole space, not examples.
+
+    Example tests encode the author's assumptions and pass whenever the code
+    matches them — every real defect in this package was found by something else.
+    A polarity conflict made compare(a,b) and compare(b,a) BOTH return HARDENED,
+    with 56 example tests green. These check the algebra instead."""
+
+    MODES = {"c": ["off", "on", "strict"]}
+    QTY = {"c": "lower-is-stronger"}
+    INVERSE = {Change.HARDENED: Change.WEAKENED, Change.WEAKENED: Change.HARDENED,
+               Change.UNCHANGED: Change.UNCHANGED, Change.INCOMPARABLE: Change.INCOMPARABLE}
+
+    def controls(self):
+        return [Control("c", en, md, q, w)
+                for en in (True, False)
+                for md in (None, "off", "on", "strict")
+                for q in (None, 1.0, 2.0)
+                for w in (False, True)]
+
+    def posture(self, c):
+        return Posture("e", (c,), "2026-01-01T00:00:00Z")
+
+    def cmp(self, a, b):
+        return compare(self.posture(a), self.posture(b),
+                       mode_order=self.MODES, quantity_order=self.QTY)
+
+    def test_antisymmetry_over_the_whole_space(self):
+        """Reversing the arguments must reverse the direction. Exhaustive over
+        every ordered pair of controls the type can express."""
+        for a in self.controls():
+            for b in self.controls():
+                forward, reverse = self.cmp(a, b), self.cmp(b, a)
+                if reverse is not self.INVERSE[forward]:
+                    self.fail(f"antisymmetry broken: {a} -> {b} gave {forward.value}, "
+                              f"reverse gave {reverse.value}")
+
+    def test_reflexivity_over_the_whole_space(self):
+        """Every control compared with itself is UNCHANGED — no exceptions."""
+        for c in self.controls():
+            self.assertIs(self.cmp(c, c), Change.UNCHANGED, f"{c} not unchanged against itself")
+
+    def test_a_polarity_conflict_is_incomparable(self):
+        """Two records asserting different things about what a control IS cannot be
+        ranked; picking one record's claim over the other's is not a comparison."""
+        exemption = Control("c", True, weakens_when_enabled=True)
+        ordinary = Control("c", True, weakens_when_enabled=False)
+        self.assertIs(self.cmp(exemption, ordinary), Change.INCOMPARABLE)
+
+    def test_identity_is_at_least_as_strict_as_comparison(self):
+        """If two postures share a posture_id they must compare UNCHANGED. The
+        converse need not hold, but this direction must."""
+        for a in self.controls():
+            for b in self.controls():
+                if posture_id(self.posture(a), canonicalize=canon) == \
+                   posture_id(self.posture(b), canonicalize=canon):
+                    self.assertIs(self.cmp(a, b), Change.UNCHANGED,
+                                  f"same posture_id but {a} vs {b} did not compare unchanged")
+
+
 class TestCoverage(unittest.TestCase):
     """UNCOVERED outranks SPLIT; both are fail-closed."""
 

@@ -47,7 +47,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 #: in-toto predicate type minted by this package
 PREDICATE_TYPE = "https://flxk1.github.io/enforcement-posture/v0.1"
@@ -226,6 +226,10 @@ def compare(
     ``mode_order`` maps a control name to its modes weakest-first, e.g.
     ``{"host_divergence": ["off", "advisory", "hard-fail"]}``.
 
+    A control marked :attr:`Control.weakens_when_enabled` inverts the on/off
+    reading. If the two postures disagree about that flag they are INCOMPARABLE —
+    they are not describing the same control.
+
     ``quantity_order`` maps a control name to ``"lower-is-stronger"`` or
     ``"higher-is-stronger"``, e.g. ``{"bundle.authz.polling": "lower-is-stronger"}``
     — a longer poll interval means a staler policy. Without an entry a quantity
@@ -240,6 +244,12 @@ def compare(
     for old in before.controls:
         new = after.control(old.name)
         assert new is not None  # guarded by the set equality above
+
+        if old.weakens_when_enabled != new.weakens_when_enabled:
+            # The two records assert different things about what this control IS.
+            # That is the same class of conflict as a differing control set, and
+            # ranking it would mean picking one record's claim over the other's.
+            return Change.INCOMPARABLE
 
         if old.enabled != new.enabled:
             # An exemption inverts the usual reading: switching one ON weakens.
