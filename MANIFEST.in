@@ -1,0 +1,6 @@
+include LICENSE
+include CHANGELOG.md
+# The conformance vectors are the specification, not a build artefact: anyone
+# taking the sdist to write another implementation needs them.
+recursive-include conformance *.json *.py
+recursive-include examples *.py
