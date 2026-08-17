@@ -142,6 +142,23 @@ PRIOR-ART:
 
 Relevant to EU AI Act (Reg. 2024/1689) Art. 12.
 
+## Related
+
+One of four narrow governance primitives, each usable alone:
+
+- [`enforcement-posture`](https://github.com/flxk1/enforcement-posture) — binds evidence to the
+  controls that were in force while it was recorded
+- [`norm-freshness`](https://github.com/flxk1/norm-freshness) — whether the rule a gate applies
+  still matches the text it was compiled from
+- [`effect-reconciliation`](https://github.com/flxk1/effect-reconciliation) — permissions granted
+  against effects observed
+- [`oversight-certificate`](https://github.com/flxk1/oversight-certificate) — re-checkable proof
+  that a qualified human decided
+
+They answer different questions about the same decision: *who decided* (oversight-certificate),
+*under what regime* (enforcement-posture), *against which version of the rule* (norm-freshness),
+and *did the permission produce the effect* (effect-reconciliation).
+
 ## License
 
 MIT. See `LICENSE`. Copyright 2026 flxk1.

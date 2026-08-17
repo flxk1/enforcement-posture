@@ -1,0 +1,43 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install ".[test]"
+      # Both runners, deliberately: a pytest-only suite can pass while
+      # `unittest discover` collects zero tests and still exits 0.
+      - run: pytest -q
+      - run: python -m unittest discover -s tests -v
+
+  install:
+    # Clean-room: install the package as a stranger would, with no test
+    # dependencies, and execute every python block in the README. If the
+    # documented example stops matching the code, this goes red.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ".[recommended]"
+      - name: run the README examples
+        run: |
+          python - <<'PY' > /tmp/example.py
+          import re
+          blocks = re.findall(r"```python\n(.*?)```", open("README.md").read(), re.S)
+          assert blocks, "README has no python example to verify"
+          print("\n".join(blocks))
+          PY
+          python /tmp/example.py
