@@ -98,7 +98,7 @@ Time splits three ways: at-or-above baseline, weakened, and indeterminate. A pos
 |---|---|
 | `attest(posture, window, …)` | DSSE envelope wrapping an in-toto Statement |
 | `verify(envelope, …)` | `Report(ok, findings, posture, window, algorithm)` |
-| `compare(a, b, mode_order=None)` | `UNCHANGED` · `HARDENED` · `WEAKENED` · `INCOMPARABLE` |
+| `compare(a, b, mode_order=None, quantity_order=None)` | `UNCHANGED` · `HARDENED` · `WEAKENED` · `INCOMPARABLE` |
 | `coverage(window, postures, …)` | `COVERED` · `SPLIT` · `UNCOVERED`, plus segments and gaps |
 | `exposure(baseline, timeline, since=, until=, …)` | at-or-above / weakened / indeterminate seconds, plus episodes |
 | `posture_id(posture, …)` | `sha256:…` over the controls, excluding the interval |
@@ -106,8 +106,13 @@ Time splits three ways: at-or-above baseline, weakened, and indeterminate. A pos
 ## Semantics
 
 - **`compare` is a partial order, not a score.** A different engine, a differing control set, a
-  mode change with no supplied `mode_order`, or a change that both hardens and weakens returns
-  `INCOMPARABLE`.
+  mode change with no supplied `mode_order`, a quantity change with no supplied `quantity_order`,
+  or a change that both hardens and weakens returns `INCOMPARABLE`.
+- **Quantities carry a caller-supplied direction.** `Control.quantity` holds a poll interval,
+  timeout, rate limit or threshold. Which way is stronger is domain knowledge — a *lower* bundle
+  poll delay is stronger, a *higher* key length is — so `quantity_order` maps a control name to
+  `"lower-is-stronger"` or `"higher-is-stronger"`. Without an entry the change is `INCOMPARABLE`,
+  **never `UNCHANGED`**.
 - **`coverage` returns `SPLIT` with segments** rather than collapsing a window whose regime
   changed. There is no single "effective posture" for such a window.
 - **`UNCOVERED` outranks `SPLIT`.** Any sub-interval without an attested posture makes the whole
@@ -128,8 +133,22 @@ Time splits three ways: at-or-above baseline, weakened, and indeterminate. A pos
 - **It attests a claim; it does not observe the engine.** The posture recorded is the one the
   attesting process asserts. It makes an operator's claims checkable and non-repudiable — it does
   not independently measure what the engine did.
-- **Mode orders are per-caller.** There is no universal ranking of mode names.
+- **Mode orders and quantity directions are per-caller.** There is no universal ranking of mode
+  names, and no universal answer to whether higher is stronger.
 - It does not judge adequacy. `verify` locates structural and cryptographic defects only.
+
+## Describing an engine that is not ours
+
+`examples/opa_posture.py` maps an Open Policy Agent runtime configuration — the response shape of
+OPA's `GET /v1/config` — onto a `Posture`, and compares two of them.
+
+This exists because until now the package had described exactly one engine, and that engine and
+the package share an author. The test found a real defect: OPA's controls include **quantities** (bundle
+poll intervals, decision-log report delays), which `Control` could not express, and a poll interval
+moving from 120 s to 86400 s — a day-stale policy, unambiguously a weakening — compared as
+`UNCHANGED`. `Control.quantity` and `quantity_order` exist because of that run.
+
+The whole OPA configuration now maps with no further change to the package.
 
 ## Prior art
 

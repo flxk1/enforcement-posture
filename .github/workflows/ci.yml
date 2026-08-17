@@ -34,10 +34,9 @@ jobs:
       - run: pip install ".[recommended]"
       - name: run the README examples
         run: |
-          python - <<'PY' > /tmp/example.py
+          python - <<'SNIPPET'
           import re
           blocks = re.findall(r"```python\n(.*?)```", open("README.md").read(), re.S)
           assert blocks, "README has no python example to verify"
-          print("\n".join(blocks))
-          PY
-          python /tmp/example.py
+          exec(compile("\n".join(blocks), "<readme>", "exec"), {"__name__": "__main__"})
+          SNIPPET

@@ -144,6 +144,58 @@ class TestPartialOrder(unittest.TestCase):
         self.assertIs(compare(posture(), posture(engine="other")), Change.INCOMPARABLE)
 
 
+class TestQuantities(unittest.TestCase):
+    """Added in 0.4.0 after pointing the package at OPA — a foreign engine.
+
+    The one engine described until now has boolean-and-mode controls, and the same
+    author wrote both sides, so the abstraction fitted. OPA has quantities (poll intervals, report delays), and a bundle
+    poll moving from 120s to 86400s means a day-stale policy — a real weakening
+    that `compare` previously reported as UNCHANGED."""
+
+    def q(self, value, name="poll"):
+        return Posture("e", (Control(name, True, quantity=value),), "2026-01-01T00:00:00Z")
+
+    def test_a_quantity_change_is_never_silently_unchanged(self):
+        """The defect this fixes: silence reading as benign, in the package built
+        to prevent exactly that."""
+        result = compare(self.q(120), self.q(86400))
+        self.assertIsNot(result, Change.UNCHANGED)
+        self.assertIs(result, Change.INCOMPARABLE)
+
+    def test_direction_is_caller_supplied_because_it_is_domain_knowledge(self):
+        lower = {"poll": "lower-is-stronger"}    # a longer poll interval = staler policy
+        higher = {"poll": "higher-is-stronger"}  # a longer key = stronger
+        self.assertIs(compare(self.q(120), self.q(86400), quantity_order=lower), Change.WEAKENED)
+        self.assertIs(compare(self.q(120), self.q(86400), quantity_order=higher), Change.HARDENED)
+
+    def test_an_unrecognised_direction_is_incomparable(self):
+        self.assertIs(compare(self.q(1), self.q(2), quantity_order={"poll": "bigger"}), Change.INCOMPARABLE)
+
+    def test_a_quantity_appearing_or_vanishing_is_incomparable(self):
+        none = Posture("e", (Control("poll", True),), "2026-01-01T00:00:00Z")
+        self.assertIs(compare(none, self.q(60), quantity_order={"poll": "lower-is-stronger"}),
+                      Change.INCOMPARABLE)
+
+    def test_an_equal_quantity_is_unchanged(self):
+        self.assertIs(compare(self.q(60), self.q(60)), Change.UNCHANGED)
+
+    def test_quantity_participates_in_posture_identity(self):
+        self.assertNotEqual(posture_id(self.q(60), canonicalize=canon),
+                            posture_id(self.q(61), canonicalize=canon))
+
+    def test_a_control_without_a_quantity_serialises_unchanged(self):
+        """Back-compat: the field is omitted when absent, so 0.3.0 signatures hold."""
+        self.assertEqual(Control("c", True).to_dict(), {"name": "c", "enabled": True})
+        self.assertEqual(Control("c", True, quantity=5.0).to_dict(),
+                         {"name": "c", "enabled": True, "quantity": 5.0})
+
+    def test_quantity_and_enabled_moving_opposite_ways_is_incomparable(self):
+        before = Posture("e", (Control("c", True, quantity=10),), "2026-01-01T00:00:00Z")
+        after = Posture("e", (Control("c", False, quantity=5),), "2026-01-01T00:00:00Z")
+        self.assertIs(compare(before, after, quantity_order={"c": "lower-is-stronger"}),
+                      Change.INCOMPARABLE)
+
+
 class TestCoverage(unittest.TestCase):
     """UNCOVERED outranks SPLIT; both are fail-closed."""
 

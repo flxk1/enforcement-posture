@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 — 2026-08-17
+
+`Control.quantity` and `compare(..., quantity_order=...)`, found by pointing the package at a
+foreign engine for the first time.
+
+Until now the package had described exactly one engine, written by the same author, so the
+abstraction fitted by construction. Mapping OPA's `GET /v1/config` exposed the gap: OPA's
+enforcement surface includes **quantities** — bundle poll intervals, decision-log report delays —
+which `Control` could not express at all. Worse, a bundle poll moving from 120 s to 86400 s means
+the engine may run a **day-stale policy**, an unambiguous weakening, and `compare` reported
+`UNCHANGED`. Silence reading as benign, in the package built to prevent that.
+
+Quantities are compared only against a caller-supplied direction (`"lower-is-stronger"` /
+`"higher-is-stronger"`), because which way is stronger is domain knowledge. Without one, a quantity
+change is `INCOMPARABLE` — never `UNCHANGED`. Same shape as `mode_order`.
+
+Back-compatible: `quantity` is omitted from the canonical form when absent, so 0.3.0 signatures
+still verify. `examples/opa_posture.py` carries the test.
+
 ## 0.3.0 — 2026-08-15
 
 Record the signature scheme **inside the signed payload** (`predicate.signing.algorithm`) rather

@@ -43,7 +43,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 #: in-toto predicate type minted by this package
 PREDICATE_TYPE = "https://flxk1.github.io/enforcement-posture/v0.1"
@@ -107,11 +107,19 @@ class Control:
     name: str
     enabled: bool
     mode: str | None = None
+    #: A numeric setting — a poll interval, a timeout, a rate limit, a threshold.
+    #: Quantities are compared only against a caller-supplied direction, because
+    #: which way is stronger is domain knowledge: a *lower* bundle-poll delay is
+    #: stronger, a *higher* key length is. Absent a direction, a change is
+    #: INCOMPARABLE rather than silently unchanged.
+    quantity: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"name": self.name, "enabled": self.enabled}
         if self.mode is not None:
             out["mode"] = self.mode
+        if self.quantity is not None:
+            out["quantity"] = self.quantity
         return out
 
 
@@ -186,15 +194,22 @@ def compare(
     after: Posture,
     *,
     mode_order: Mapping[str, Sequence[str]] | None = None,
+    quantity_order: Mapping[str, str] | None = None,
 ) -> Change:
     """Relate two postures, refusing to invent an ordering that does not exist.
 
     INCOMPARABLE is returned for a different engine, a differing control set, a
-    mode change with no supplied order (or a mode outside it), and — the case a
-    scoring tool would paper over — a change that both hardens and weakens.
+    mode change with no supplied order (or a mode outside it), a **quantity change
+    with no supplied direction**, and — the case a scoring tool would paper over —
+    a change that both hardens and weakens.
 
     ``mode_order`` maps a control name to its modes weakest-first, e.g.
     ``{"host_divergence": ["off", "advisory", "hard-fail"]}``.
+
+    ``quantity_order`` maps a control name to ``"lower-is-stronger"`` or
+    ``"higher-is-stronger"``, e.g. ``{"bundle.authz.polling": "lower-is-stronger"}``
+    — a longer poll interval means a staler policy. Without an entry a quantity
+    change is INCOMPARABLE; it is never reported as unchanged.
     """
     if before.engine != after.engine:
         return Change.INCOMPARABLE
@@ -208,6 +223,21 @@ def compare(
 
         if old.enabled != new.enabled:
             if new.enabled:
+                hardened = True
+            else:
+                weakened = True
+
+        if old.quantity != new.quantity:
+            direction = (quantity_order or {}).get(old.name)
+            if direction is None or old.quantity is None or new.quantity is None:
+                return Change.INCOMPARABLE
+            if direction == "higher-is-stronger":
+                stronger = new.quantity > old.quantity
+            elif direction == "lower-is-stronger":
+                stronger = new.quantity < old.quantity
+            else:
+                return Change.INCOMPARABLE
+            if stronger:
                 hardened = True
             else:
                 weakened = True
@@ -275,6 +305,7 @@ def coverage(
     *,
     canonicalize: Canonicalize,
     mode_order: Mapping[str, Sequence[str]] | None = None,
+    quantity_order: Mapping[str, str] | None = None,
 ) -> Coverage:
     """Decide whether ``window`` sits under a single known posture.
 
@@ -309,7 +340,7 @@ def coverage(
             transitions.append(Change.INCOMPARABLE)  # overlapping attestations
             previous = None
         if previous is not None:
-            transitions.append(compare(previous, p, mode_order=mode_order))
+            transitions.append(compare(previous, p, mode_order=mode_order, quantity_order=quantity_order))
         segments.append(Segment(_iso(max(lo, cursor)), _iso(hi), posture_id(p, canonicalize=canonicalize)))
         previous = p
         cursor = max(cursor, hi)
@@ -387,6 +418,7 @@ def exposure(
     until: str,
     canonicalize: Canonicalize,
     mode_order: Mapping[str, Sequence[str]] | None = None,
+    quantity_order: Mapping[str, str] | None = None,
 ) -> Exposure:
     """Measure time spent below an intended enforcement baseline.
 
@@ -424,7 +456,7 @@ def exposure(
             continue
         span = (end - effective_start).total_seconds()
 
-        verdict = compare(baseline, p, mode_order=mode_order)
+        verdict = compare(baseline, p, mode_order=mode_order, quantity_order=quantity_order)
         if verdict in (Change.UNCHANGED, Change.HARDENED):
             at_or_above += span
         elif verdict is Change.WEAKENED:
