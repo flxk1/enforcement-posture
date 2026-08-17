@@ -1,0 +1,639 @@
+{
+  "schema": "enforcement-posture-conformance/1",
+  "package_version": "0.4.0",
+  "note": "Language-agnostic conformance vectors. An implementation in any language conforms if it reproduces every `expect` from the corresponding `input`. The refusal cases \u2014 incomparable, split, uncovered \u2014 are the point: they are what a reimplementation gets wrong, and getting them wrong turns a refusal into a false assurance.",
+  "vectors": [
+    {
+      "id": "compare-identical-unchanged",
+      "note": "identical postures",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "unchanged"
+    },
+    {
+      "id": "compare-disable-weakens",
+      "note": "a control switched off is a weakening",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": false
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "weakened"
+    },
+    {
+      "id": "compare-enable-hardens",
+      "note": "a control switched on is a hardening",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": false
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "hardened"
+    },
+    {
+      "id": "compare-different-engine-incomparable",
+      "note": "postures of different engines are not comparable",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "other",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "incomparable"
+    },
+    {
+      "id": "compare-different-control-set-incomparable",
+      "note": "a differing control set is not comparable",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "incomparable"
+    },
+    {
+      "id": "compare-mode-change-without-order-incomparable",
+      "note": "mode names have no universal ranking; without a supplied order this is a refusal, not a guess",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "hard-fail"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "incomparable"
+    },
+    {
+      "id": "compare-mode-change-with-order-hardens",
+      "note": "with a supplied order the mode change is ranked",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "hard-fail"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "mode_order": {
+          "divergence": [
+            "off",
+            "advisory",
+            "hard-fail"
+          ]
+        }
+      },
+      "expect": "hardened"
+    },
+    {
+      "id": "compare-mode-outside-order-incomparable",
+      "note": "a mode absent from the supplied order is not ranked",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "advisory"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "lenient"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "mode_order": {
+          "divergence": [
+            "off",
+            "advisory",
+            "hard-fail"
+          ]
+        }
+      },
+      "expect": "incomparable"
+    },
+    {
+      "id": "compare-both-directions-incomparable",
+      "note": "a change that both hardens and weakens has no direction; a scoring tool would invent one",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": true
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "off"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "allowlist",
+              "enabled": false
+            },
+            {
+              "name": "divergence",
+              "enabled": true,
+              "mode": "hard-fail"
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "mode_order": {
+          "divergence": [
+            "off",
+            "advisory",
+            "hard-fail"
+          ]
+        }
+      },
+      "expect": "incomparable"
+    },
+    {
+      "id": "compare-quantity-without-direction-incomparable",
+      "note": "which way is stronger is domain knowledge; a quantity change is never silently unchanged",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "poll",
+              "enabled": true,
+              "quantity": 120
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "poll",
+              "enabled": true,
+              "quantity": 86400
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "incomparable"
+    },
+    {
+      "id": "compare-quantity-lower-is-stronger-weakens",
+      "note": "a longer poll interval means a staler policy",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "poll",
+              "enabled": true,
+              "quantity": 120
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "poll",
+              "enabled": true,
+              "quantity": 86400
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "quantity_order": {
+          "poll": "lower-is-stronger"
+        }
+      },
+      "expect": "weakened"
+    },
+    {
+      "id": "compare-quantity-higher-is-stronger-hardens",
+      "note": "the opposite direction, same data",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "poll",
+              "enabled": true,
+              "quantity": 120
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "poll",
+              "enabled": true,
+              "quantity": 86400
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "quantity_order": {
+          "poll": "higher-is-stronger"
+        }
+      },
+      "expect": "hardened"
+    },
+    {
+      "id": "coverage-single-posture-covered",
+      "note": "one regime over the whole window",
+      "call": "coverage",
+      "input": {
+        "window": {
+          "log_id": "l",
+          "start": "2026-03-01T00:00:00Z",
+          "end": "2026-03-31T00:00:00Z",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "postures": [
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": true
+              }
+            ],
+            "effective_from": "2026-03-01T00:00:00Z"
+          }
+        ]
+      },
+      "expect": "covered"
+    },
+    {
+      "id": "coverage-two-postures-split",
+      "note": "a window whose regime changed mid-way has no single effective posture",
+      "call": "coverage",
+      "input": {
+        "window": {
+          "log_id": "l",
+          "start": "2026-03-01T00:00:00Z",
+          "end": "2026-03-31T00:00:00Z",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "postures": [
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": true
+              }
+            ],
+            "effective_from": "2026-03-01T00:00:00Z",
+            "effective_to": "2026-03-15T00:00:00Z"
+          },
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": false
+              }
+            ],
+            "effective_from": "2026-03-15T00:00:00Z"
+          }
+        ]
+      },
+      "expect": "split"
+    },
+    {
+      "id": "coverage-gap-uncovered",
+      "note": "an unattested sub-interval makes the whole window uncovered",
+      "call": "coverage",
+      "input": {
+        "window": {
+          "log_id": "l",
+          "start": "2026-03-01T00:00:00Z",
+          "end": "2026-03-31T00:00:00Z",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "postures": [
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": true
+              }
+            ],
+            "effective_from": "2026-03-10T00:00:00Z"
+          }
+        ]
+      },
+      "expect": "uncovered"
+    },
+    {
+      "id": "coverage-uncovered-outranks-split",
+      "note": "silence is not consent; UNCOVERED wins over SPLIT",
+      "call": "coverage",
+      "input": {
+        "window": {
+          "log_id": "l",
+          "start": "2026-03-01T00:00:00Z",
+          "end": "2026-03-31T00:00:00Z",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "postures": [
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": true
+              }
+            ],
+            "effective_from": "2026-03-01T00:00:00Z",
+            "effective_to": "2026-03-10T00:00:00Z"
+          },
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": false
+              }
+            ],
+            "effective_from": "2026-03-20T00:00:00Z"
+          }
+        ]
+      },
+      "expect": "uncovered"
+    },
+    {
+      "id": "coverage-no-postures-uncovered",
+      "note": "no attestation at all is uncovered, never covered",
+      "call": "coverage",
+      "input": {
+        "window": {
+          "log_id": "l",
+          "start": "2026-03-01T00:00:00Z",
+          "end": "2026-03-31T00:00:00Z",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "postures": []
+      },
+      "expect": "uncovered"
+    },
+    {
+      "id": "coverage-reattestation-not-a-split",
+      "note": "posture identity excludes the interval, so re-attesting an unchanged posture is not a split",
+      "call": "coverage",
+      "input": {
+        "window": {
+          "log_id": "l",
+          "start": "2026-03-01T00:00:00Z",
+          "end": "2026-03-31T00:00:00Z",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "postures": [
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": true
+              }
+            ],
+            "effective_from": "2026-03-01T00:00:00Z",
+            "effective_to": "2026-03-15T00:00:00Z"
+          },
+          {
+            "engine": "e",
+            "controls": [
+              {
+                "name": "allowlist",
+                "enabled": true
+              }
+            ],
+            "effective_from": "2026-03-15T00:00:00Z"
+          }
+        ]
+      },
+      "expect": "covered"
+    }
+  ]
+}

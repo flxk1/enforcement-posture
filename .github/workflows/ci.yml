@@ -20,6 +20,10 @@ jobs:
       # `unittest discover` collects zero tests and still exits 0.
       - run: pytest -q
       - run: python -m unittest discover -s tests -v
+      # The vectors are the specification; this checks this implementation
+      # against them. Exit 2 if the suite is empty — zero vectors must never
+      # read as conformant.
+      - run: python conformance/check_vectors.py
 
   install:
     # Clean-room: install the package as a stranger would, with no test
