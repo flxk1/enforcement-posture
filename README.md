@@ -93,6 +93,7 @@ Time splits three ways: at-or-above baseline, weakened, and indeterminate. A pos
 
 | call | returns |
 |---|---|
+| `Control(name, enabled, mode=None, weakens_when_enabled=False, quantity=None)` | one control; set the flag for exemptions |
 | `attest(posture, window, …)` | DSSE envelope wrapping an in-toto Statement |
 | `verify(envelope, …)` | `Report(ok, findings, posture, window, algorithm)` |
 | `compare(a, b, mode_order=None, quantity_order=None)` | `UNCHANGED` · `HARDENED` · `WEAKENED` · `INCOMPARABLE` |
@@ -105,6 +106,11 @@ Time splits three ways: at-or-above baseline, weakened, and indeterminate. A pos
 - **`compare` is a partial order, not a score.** A different engine, a differing control set, a
   mode change with no supplied `mode_order`, a quantity change with no supplied `quantity_order`,
   or a change that both hardens and weakens returns `INCOMPARABLE`.
+- **An exemption inverts the on/off reading.** `Control(..., weakens_when_enabled=True)` marks a
+  control whose *presence* weakens — a policy exception, an override, a break-glass grant, a bypass
+  allowlist. Without it, granting an exception reads as a hardening. Unlike the orderings below,
+  polarity is a fact about the control rather than a reader's choice, so it travels **inside the
+  signed record**: two verifiers cannot disagree about whether a change was a weakening.
 - **Quantities carry a caller-supplied direction.** `Control.quantity` holds a poll interval,
   timeout, rate limit or threshold. Which way is stronger is domain knowledge — a *lower* bundle
   poll delay is stronger, a *higher* key length is — so `quantity_order` maps a control name to
@@ -146,6 +152,13 @@ moving from 120 s to 86400 s — a day-stale policy, unambiguously a weakening �
 `UNCHANGED`. `Control.quantity` and `quantity_order` exist because of that run.
 
 The whole OPA configuration now maps with no further change to the package.
+
+`examples/kyverno_posture.py` does the same for Kyverno, chosen because it is structurally
+unlike OPA: its posture is a *set of policy objects* of changing cardinality rather than one
+config document. Two findings. Modelling one control per policy makes every routine policy
+addition `INCOMPARABLE` — aggregate to a fixed control set whose values summarise the fleet
+instead. And a `PolicyException` exposed the polarity gap above: granting an escape hatch was
+read as a hardening.
 
 ## Conformance
 

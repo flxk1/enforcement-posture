@@ -1,6 +1,6 @@
 {
   "schema": "enforcement-posture-conformance/1",
-  "package_version": "0.4.0",
+  "package_version": "0.5.0",
   "note": "Language-agnostic conformance vectors. An implementation in any language conforms if it reproduces every `expect` from the corresponding `input`. The refusal cases \u2014 incomparable, split, uncovered \u2014 are the point: they are what a reimplementation gets wrong, and getting them wrong turns a refusal into a false assurance.",
   "vectors": [
     {
@@ -634,6 +634,94 @@
         ]
       },
       "expect": "covered"
+    },
+    {
+      "id": "compare-granting-an-exemption-weakens",
+      "note": "an exemption's presence weakens; without polarity the package read a granted exception as a hardening",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "exceptions",
+              "enabled": false,
+              "weakens_when_enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "exceptions",
+              "enabled": true,
+              "weakens_when_enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "weakened"
+    },
+    {
+      "id": "compare-revoking-an-exemption-hardens",
+      "note": "the inverse",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "exceptions",
+              "enabled": true,
+              "weakens_when_enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "exceptions",
+              "enabled": false,
+              "weakens_when_enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "hardened"
+    },
+    {
+      "id": "compare-ordinary-control-polarity-unchanged",
+      "note": "only controls marked as exemptions invert; everything else keeps enabled-is-stronger",
+      "call": "compare",
+      "input": {
+        "before": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "exceptions",
+              "enabled": false
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        },
+        "after": {
+          "engine": "e",
+          "controls": [
+            {
+              "name": "exceptions",
+              "enabled": true
+            }
+          ],
+          "effective_from": "2026-03-01T00:00:00Z"
+        }
+      },
+      "expect": "hardened"
     }
   ]
 }

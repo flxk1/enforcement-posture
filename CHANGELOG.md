@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0 — 2026-08-17
+
+`Control.weakens_when_enabled`, found by describing a second foreign engine.
+
+Kyverno was chosen because it is structurally unlike OPA — its posture is a set of policy objects
+whose cardinality changes, not one configuration document. Mapping it exposed that the package
+hard-coded **enabling a control hardens**. That is false for the entire exemption family: policy
+exceptions, overrides, break-glass grants, bypass allowlists. Granting a Kyverno `PolicyException`
+— an escape hatch — read as a HARDENING.
+
+Marking a control `weakens_when_enabled=True` inverts the on/off reading. Unlike `mode_order` and
+`quantity_order`, which are orderings a deployment defines over its own vocabulary, polarity is a
+fact about what the control *is*, so it travels **inside the signed attestation**: two verifiers
+cannot disagree about whether a given change was a weakening.
+
+Also documented, from the same run: modelling one control per policy makes every routine policy
+addition `INCOMPARABLE`. Aggregate to a fixed control set instead.
+
+Back-compatible: the flag is omitted from the canonical form when false, so 0.4.0 signatures still
+verify. Three conformance vectors added.
+
+The field is appended, not inserted. It first went in *before* `quantity`, which silently rebound
+the fourth positional argument for every caller constructing a `Control` positionally. Every test
+passed — they use keywords — and the conformance vectors caught it, because they construct
+positionally. A test now pins the field order.
+
 ## 0.4.0 — 2026-08-17
 
 `Control.quantity` and `compare(..., quantity_order=...)`, found by pointing the package at a

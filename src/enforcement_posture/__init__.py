@@ -13,6 +13,10 @@ This package is the missing statement. It computes and checks; it does not judge
 
 Four semantics carry the design, and each is a refusal rather than a guess:
 
+* :attr:`Control.weakens_when_enabled` marks an **exemption** — a policy
+  exception, override or break-glass grant, whose presence weakens rather than
+  strengthens. Without it the package assumed enabling always hardens, and a newly
+  granted exception read as a hardening.
 * :func:`compare` returns :attr:`Change.INCOMPARABLE` — for a different engine, a
   different control set, a mode change with no caller-supplied order, or a change
   that both hardens and weakens. Posture is a **partial order**, not a score, and
@@ -43,7 +47,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 #: in-toto predicate type minted by this package
 PREDICATE_TYPE = "https://flxk1.github.io/enforcement-posture/v0.1"
@@ -113,6 +117,20 @@ class Control:
     #: stronger, a *higher* key length is. Absent a direction, a change is
     #: INCOMPARABLE rather than silently unchanged.
     quantity: float | None = None
+    #: Whether the control is an *exemption*: something whose presence WEAKENS
+    #: enforcement rather than strengthening it — a policy exception, an override,
+    #: a break-glass grant, a bypass allowlist. The package otherwise assumes
+    #: enabling a control hardens, which is false for this whole family and made a
+    #: newly added exception read as a HARDENING.
+    #:
+    #: Unlike ``mode_order`` and ``quantity_order``, which are orderings a
+    #: deployment defines over its own value vocabulary, polarity is a fact about
+    #: what the control *is*. It therefore travels inside the signed attestation,
+    #: so two readers cannot disagree about whether a change was a weakening.
+    weakens_when_enabled: bool = False
+    # NOTE: appended, never inserted. Positional construction is part of the
+    # public surface — adding a field mid-dataclass silently rebinds every
+    # positional caller's arguments, which is how this was caught.
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"name": self.name, "enabled": self.enabled}
@@ -120,6 +138,8 @@ class Control:
             out["mode"] = self.mode
         if self.quantity is not None:
             out["quantity"] = self.quantity
+        if self.weakens_when_enabled:
+            out["weakens_when_enabled"] = True
         return out
 
 
@@ -222,7 +242,10 @@ def compare(
         assert new is not None  # guarded by the set equality above
 
         if old.enabled != new.enabled:
-            if new.enabled:
+            # An exemption inverts the usual reading: switching one ON weakens.
+            turning_on = new.enabled
+            stronger = (not turning_on) if old.weakens_when_enabled else turning_on
+            if stronger:
                 hardened = True
             else:
                 weakened = True

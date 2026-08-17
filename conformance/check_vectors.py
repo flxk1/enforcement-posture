@@ -32,7 +32,10 @@ def _canon(obj) -> bytes:
 def _posture(d: dict) -> Posture:
     return Posture(
         d["engine"],
-        tuple(Control(c["name"], c["enabled"], c.get("mode"), c.get("quantity")) for c in d["controls"]),
+        tuple(Control(name=c["name"], enabled=c["enabled"], mode=c.get("mode"),
+                      quantity=c.get("quantity"),
+                      weakens_when_enabled=c.get("weakens_when_enabled", False))
+              for c in d["controls"]),
         d["effective_from"],
         d.get("effective_to"),
     )

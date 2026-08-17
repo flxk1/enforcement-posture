@@ -196,6 +196,53 @@ class TestQuantities(unittest.TestCase):
                       Change.INCOMPARABLE)
 
 
+class TestExemptions(unittest.TestCase):
+    """Added in 0.5.0 after describing Kyverno, whose escape hatches are objects.
+
+    The package assumed enabling a control hardens. That is false for the whole
+    exemption family — policy exceptions, overrides, break-glass grants, bypass
+    allowlists — where presence weakens. A newly granted exception read as a
+    HARDENING."""
+
+    def p(self, on, exempt=True):
+        return Posture("k", (Control("exceptions", on, weakens_when_enabled=exempt),),
+                       "2026-01-01T00:00:00Z")
+
+    def test_granting_an_exemption_weakens(self):
+        self.assertIs(compare(self.p(False), self.p(True)), Change.WEAKENED)
+
+    def test_revoking_an_exemption_hardens(self):
+        self.assertIs(compare(self.p(True), self.p(False)), Change.HARDENED)
+
+    def test_an_ordinary_control_is_unaffected(self):
+        self.assertIs(compare(self.p(False, exempt=False), self.p(True, exempt=False)), Change.HARDENED)
+
+    def test_polarity_travels_in_the_signed_record(self):
+        """It is a fact about the control, not a reader's opinion, so two verifiers
+        cannot disagree about whether a change was a weakening."""
+        self.assertEqual(Control("c", True, weakens_when_enabled=True).to_dict(),
+                         {"name": "c", "enabled": True, "weakens_when_enabled": True})
+
+    def test_an_ordinary_control_serialises_unchanged(self):
+        """Back-compat: the flag is omitted when false, so 0.4.0 signatures hold."""
+        self.assertEqual(Control("c", True).to_dict(), {"name": "c", "enabled": True})
+
+    def test_positional_field_order_is_part_of_the_contract(self):
+        """weakens_when_enabled was first inserted BEFORE quantity, silently
+        rebinding every positional caller's fourth argument. The keyword-using
+        tests all passed; the conformance vectors, which construct positionally,
+        caught it. New fields are appended, never inserted."""
+        import inspect
+        self.assertEqual(list(inspect.signature(Control).parameters),
+                         ["name", "enabled", "mode", "quantity", "weakens_when_enabled"])
+        c = Control("n", True, "m", 1.0)
+        self.assertEqual((c.mode, c.quantity, c.weakens_when_enabled), ("m", 1.0, False))
+
+    def test_polarity_participates_in_posture_identity(self):
+        self.assertNotEqual(posture_id(self.p(True), canonicalize=canon),
+                            posture_id(self.p(True, exempt=False), canonicalize=canon))
+
+
 class TestCoverage(unittest.TestCase):
     """UNCOVERED outranks SPLIT; both are fail-closed."""
 
