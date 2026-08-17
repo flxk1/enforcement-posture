@@ -11,11 +11,17 @@ unreported, so an audit log arrives with no statement of the regime that produce
 ## Install
 
 ```bash
-pip install .
+pip install "enforcement-posture[recommended] @ git+https://github.com/flxk1/enforcement-posture"
 ```
 
-Stdlib-only core; FOSS primitives are injected, not bundled. The example needs
-`pip install ".[recommended]"` (`cryptography`, `rfc8785`). Tests: `pip install ".[test]"`.
+Stdlib-only core; FOSS primitives are injected, not bundled. The `recommended` extra pulls `cryptography` and `rfc8785`, which the examples use — the core
+needs neither. Without the extra:
+
+```bash
+pip install "git+https://github.com/flxk1/enforcement-posture"
+```
+
+Tests: `pip install ".[test]"` from a clone. **Not yet on PyPI**, so the git URL is the install.
 
 ## Usage
 
