@@ -1,214 +1,34 @@
 # enforcement-posture
 
-Binds a body of evidence to the enforcement controls that were in force while it was recorded, as
-a DSSE-wrapped in-toto Statement verifiable offline. Also measures time spent below an intended
-baseline.
-
-Enforcement engines ship escape hatches — permissive flags, advisory-instead-of-hard modes, opt-in
-strict tiers. The effective posture is the product of all of them and is usually unsigned and
-unreported, so an audit log arrives with no statement of the regime that produced it.
+Binds evidence to the enforcement controls in force while it was recorded, as a DSSE-wrapped in-toto Statement; measures time below a baseline posture.
 
 ## Install
 
-```bash
-pip install "enforcement-posture[recommended] @ git+https://github.com/flxk1/enforcement-posture"
-```
-
-Stdlib-only core; FOSS primitives are injected, not bundled. The `recommended` extra pulls
-`cryptography` and `rfc8785`, which the examples use — the core needs neither.
-
-Distributed from this repository; there is no package-index release. Tests:
-`pip install ".[test]"` from a clone.
+`pip install "enforcement-posture[recommended] @ git+https://github.com/flxk1/enforcement-posture"`
 
 ## Usage
 
 ```python
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from rfc8785 import dumps
-from enforcement_posture import Control, Posture, EvidenceWindow, attest, verify, coverage, compare
-
-key = Ed25519PrivateKey.from_private_bytes(bytes(32))
-pub = key.public_key()
-sign = lambda b: key.sign(b)
-def verify_sig(b, s):
-    try: pub.verify(s, b); return True
-    except Exception: return False
-
-strict = Posture("rvnd",
-    (Control("folder_allowlist", True), Control("host_divergence", True, "hard-fail")),
-    "2026-03-01T00:00:00Z", "2026-03-15T00:00:00Z")
-relaxed = Posture("rvnd",
-    (Control("folder_allowlist", False), Control("host_divergence", True, "hard-fail")),
-    "2026-03-15T00:00:00Z")
-window = EvidenceWindow("chain:ws-1", "2026-03-01T00:00:00Z", "2026-03-31T00:00:00Z", "a" * 64)
-
 envelope = attest(strict, window, canonicalize=dumps, sign=sign, algorithm="ed25519")
-print(verify(envelope, canonicalize=dumps, verify_sig=verify_sig).ok)
-print(compare(strict, relaxed).value)
-print(coverage(window, [strict, relaxed], canonicalize=dumps).status.value)
+coverage(window, [strict, relaxed], canonicalize=dumps).status.value
 ```
 
-```
-True
-weakened
-split
-```
+## Interface
 
-A conformity projection over March cannot be rendered under one posture, so `coverage` returns
-`split` and hands back the segments. Narrow the window to a single regime and it returns `covered`.
+- `Posture(engine, controls, effective_from, effective_to=None)`, `Control(name, enabled, mode=None, weakens_when_enabled=False, quantity=None)`, `EvidenceWindow(log_id, start, end, digest)`
+- `attest(posture, window, …)` -> DSSE envelope; `verify(envelope, …)` -> `Report(ok, findings, posture, window, algorithm)`
+- `compare(a, b, …)` -> UNCHANGED, HARDENED, WEAKENED, INCOMPARABLE (partial order)
+- `coverage(window, postures, …)` -> COVERED, SPLIT, UNCOVERED
+- `exposure(baseline, timeline, …)` -> at-or-above/weakened/indeterminate seconds, episodes
 
-### Exposure
+## Family
 
-```python
-from enforcement_posture import exposure
+Assurance artifact, pillar "enforcement state" of [governance-certification](https://github.com/flxk1/governance-certification). Consumes: DSSE, in-toto Statement v1, RFC 8785, Ed25519 (injected). `examples/`: OPA, Kyverno. Docs: [docs/](docs/).
 
-def at(frm, to=None, allowlist=True):
-    return Posture("rvnd",
-        (Control("folder_allowlist", allowlist), Control("host_divergence", True, "hard-fail")),
-        frm, to)
+## Status
 
-intended = at("2026-03-01T00:00:00Z")          # what should have been enforcing
-timeline = [                                    # what actually ran
-    at("2026-03-01T00:00:00Z", "2026-03-11T00:00:00Z"),
-    at("2026-03-11T00:00:00Z", "2026-03-21T00:00:00Z", allowlist=False),
-    at("2026-03-21T00:00:00Z"),
-]
-
-result = exposure(intended, timeline,
-                  since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=dumps)
-print(round(result.clean_fraction, 3), result.weakened / 86400)
-for e in result.episodes:
-    print(e.start, e.end, e.controls_off)
-```
-
-```
-0.667 10.0
-2026-03-11T00:00:00Z 2026-03-21T00:00:00Z ('folder_allowlist',)
-```
-
-Time splits three ways: at-or-above baseline, weakened, and indeterminate. A posture that is
-`INCOMPARABLE` to the baseline, and any interval with no attestation, counts as indeterminate.
-
-## API
-
-| call | returns |
-|---|---|
-| `Control(name, enabled, mode=None, weakens_when_enabled=False, quantity=None)` | one control; set the flag for exemptions |
-| `attest(posture, window, …)` | DSSE envelope wrapping an in-toto Statement |
-| `verify(envelope, …)` | `Report(ok, findings, posture, window, algorithm)` |
-| `compare(a, b, mode_order=None, quantity_order=None)` | `UNCHANGED` · `HARDENED` · `WEAKENED` · `INCOMPARABLE` |
-| `coverage(window, postures, …)` | `COVERED` · `SPLIT` · `UNCOVERED`, plus segments and gaps |
-| `exposure(baseline, timeline, since=, until=, …)` | at-or-above / weakened / indeterminate seconds, plus episodes |
-| `posture_id(posture, …)` | `sha256:…` over the controls, excluding the interval |
-
-## Semantics
-
-- **`compare` is a partial order, not a score.** A different engine, a differing control set, a
-  mode change with no supplied `mode_order`, a quantity change with no supplied `quantity_order`,
-  or a change that both hardens and weakens returns `INCOMPARABLE`.
-- **An exemption inverts the on/off reading.** `Control(..., weakens_when_enabled=True)` marks a
-  control whose *presence* weakens — a policy exception, an override, a break-glass grant, a bypass
-  allowlist. Without it, granting an exception reads as a hardening. Unlike the orderings below,
-  polarity is a fact about the control rather than a reader's choice, so it travels **inside the
-  signed record**: two verifiers cannot disagree about whether a change was a weakening.
-- **Quantities carry a caller-supplied direction.** `Control.quantity` holds a poll interval,
-  timeout, rate limit or threshold. Which way is stronger is domain knowledge — a *lower* bundle
-  poll delay is stronger, a *higher* key length is — so `quantity_order` maps a control name to
-  `"lower-is-stronger"` or `"higher-is-stronger"`. Without an entry the change is `INCOMPARABLE`,
-  **never `UNCHANGED`**.
-- **`coverage` returns `SPLIT` with segments** rather than collapsing a window whose regime
-  changed. There is no single "effective posture" for such a window.
-- **`UNCOVERED` outranks `SPLIT`.** Any sub-interval without an attested posture makes the whole
-  window uncovered.
-- **`posture_id` excludes the interval**, so re-attesting an unchanged posture after a restart
-  reads as `covered`, not as a split.
-- **`algorithm` is recorded inside the signed payload** (`predicate.signing.algorithm`), not beside
-  `keyid`. DSSE's PAE covers only payload type and payload, so an algorithm in the signature object
-  is unauthenticated and strippable. Omitting it is back-compatible; `Report.algorithm_stated` is
-  then `False`.
-- No clock: `since` / `until` are explicit, so an open-ended posture closes at a named horizon.
-
-## Limitations
-
-- **Single signature** per envelope; threshold and multi-sig are not modelled.
-- **You supply canonicalisation and keys.** Pass `rfc8785.dumps` and an Ed25519 `sign`/`verify_sig`.
-  Migrating to a post-quantum scheme is a caller change.
-- **It attests a claim; it does not observe the engine.** The posture recorded is the one the
-  attesting process asserts. It makes an operator's claims checkable and non-repudiable — it does
-  not independently measure what the engine did.
-- **Mode orders and quantity directions are per-caller.** There is no universal ranking of mode
-  names, and no universal answer to whether higher is stronger.
-- It does not judge adequacy. `verify` locates structural and cryptographic defects only.
-
-## Describing an engine that is not ours
-
-`examples/opa_posture.py` maps an Open Policy Agent runtime configuration — the response shape of
-OPA's `GET /v1/config` — onto a `Posture`, and compares two of them.
-
-This exists because until now the package had described exactly one engine, and that engine and
-the package share an author. The test found a real defect: OPA's controls include **quantities** (bundle
-poll intervals, decision-log report delays), which `Control` could not express, and a poll interval
-moving from 120 s to 86400 s — a day-stale policy, unambiguously a weakening — compared as
-`UNCHANGED`. `Control.quantity` and `quantity_order` exist because of that run.
-
-The whole OPA configuration now maps with no further change to the package.
-
-`examples/kyverno_posture.py` does the same for Kyverno, chosen because it is structurally
-unlike OPA: its posture is a *set of policy objects* of changing cardinality rather than one
-config document. Two findings. Modelling one control per policy makes every routine policy
-addition `INCOMPARABLE` — aggregate to a fixed control set whose values summarise the fleet
-instead. And a `PolicyException` exposed the polarity gap above: granting an escape hatch was
-read as a hardening.
-
-## Conformance
-
-`conformance/vectors.json` is the specification: 18 language-agnostic vectors, each an input and
-the result any implementation must produce. `conformance/check_vectors.py` checks this one.
-
-```bash
-python3 conformance/check_vectors.py
-```
-
-The refusal cases are most of the suite, because they are what a reimplementation gets wrong —
-`incomparable` for an unranked mode or quantity change, `split` for a window whose regime changed,
-`uncovered` outranking `split`. Getting any of them wrong converts a refusal into a false
-assurance, which is worse than the missing feature. An empty suite exits 2 rather than reporting
-success.
-
-## Prior art
-
-Composed on the in-toto **DSSE** envelope and Statement v1, **RFC 8785** canonical JSON and
-**Ed25519**; interoperates with the DSSE/Sigstore ecosystem. Incumbents attest *artifacts*
-(in-toto/SLSA provenance) or *distributed policy* (OPA bundle signing). Neither attests the
-effective runtime posture of a running engine bound to the evidence window it produced.
-
-```
-PRIOR-ART:
-  incumbent(s):      in-toto/SLSA · DSSE · OPA bundle signing · RFC 8785 · cryptography · Sigstore
-  distinctive layer: runtime enforcement posture bound to an evidence window; posture as a partial
-                     order with INCOMPARABLE; fail-closed coverage returning SPLIT/UNCOVERED
-  decision:          build-distinctive (composes on the above; owns the posture predicate)
-```
-
-Relevant to EU AI Act (Reg. 2024/1689) Art. 12.
-
-## Related
-
-One of four narrow governance primitives, each usable alone:
-
-- [`enforcement-posture`](https://github.com/flxk1/enforcement-posture) — binds evidence to the
-  controls that were in force while it was recorded
-- [`norm-freshness`](https://github.com/flxk1/norm-freshness) — whether the rule a gate applies
-  still matches the text it was compiled from
-- [`effect-reconciliation`](https://github.com/flxk1/effect-reconciliation) — permissions granted
-  against effects observed
-- [`oversight-certificate`](https://github.com/flxk1/oversight-certificate) — re-checkable proof
-  that a qualified human decided
-
-They answer different questions about the same decision: *who decided* (oversight-certificate),
-*under what regime* (enforcement-posture), *against which version of the rule* (norm-freshness),
-and *did the permission produce the effect* (effect-reconciliation).
+0.5.1 · 63 tests · 22 conformance vectors · Python ≥ 3.10
 
 ## License
 
-MIT. See `LICENSES/MIT.txt`. Copyright 2026 flxk1.
+MIT — [LICENSES/MIT.txt](LICENSES/MIT.txt)
