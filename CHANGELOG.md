@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Repository laid out on the measure skeleton: `LICENSES/MIT.txt` + `NOTICE` + `REUSE.toml` replace the bare `LICENSE`; `MANIFEST.in` dropped; version single-sourced from `src/enforcement_posture/_version.py`; CI workflow and release-please config added.
+
 ## 0.5.1 — 2026-08-17
 
 A defect found by **reading the code**, after the observation that no defect in this package has

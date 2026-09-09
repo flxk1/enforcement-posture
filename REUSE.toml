@@ -1,0 +1,9 @@
+version = 1
+SPDX-PackageName = "enforcement-posture"
+SPDX-PackageSupplier = "flxk1"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 flxk1"
+SPDX-License-Identifier = "MIT"

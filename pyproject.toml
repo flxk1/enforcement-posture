@@ -4,20 +4,28 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "enforcement-posture"
-version = "0.5.1"
 description = "Bind a body of evidence to the enforcement controls that were actually in force — split and uncovered windows refuse to collapse."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSES/*", "NOTICE"]
 authors = [{ name = "flxk1" }]
 dependencies = []
+dynamic = ["version"]
 
 [project.optional-dependencies]
 recommended = ["cryptography>=42.0", "rfc8785>=0.1.2"]
 test = ["pytest>=7", "cryptography>=42.0", "rfc8785>=0.1.2", "securesystemslib>=1.0"]
+
+[tool.setuptools.dynamic]
+version = { attr = "enforcement_posture._version.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 enforcement_posture = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -47,7 +47,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-__version__ = "0.5.1"
+from ._version import __version__
 
 #: in-toto predicate type minted by this package
 PREDICATE_TYPE = "https://flxk1.github.io/enforcement-posture/v0.1"
