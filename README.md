@@ -2,6 +2,10 @@
 
 Binds evidence to the enforcement controls in force while it was recorded, as a DSSE-wrapped in-toto Statement; measures time below a baseline posture.
 
+## Problem
+
+Evidence is recorded, but not which controls were active at the time. Binds evidence to the enforcement controls in force, measures time below baseline.
+
 ## Install
 
 `pip install "enforcement-posture[recommended] @ git+https://github.com/flxk1/enforcement-posture"`
@@ -11,6 +15,14 @@ Binds evidence to the enforcement controls in force while it was recorded, as a 
 ```python
 envelope = attest(strict, window, canonicalize=dumps, sign=sign, algorithm="ed25519")
 coverage(window, [strict, relaxed], canonicalize=dumps).status.value
+```
+
+## Example
+
+```
+in : compare(Posture("opa", (Control("deny-egress", True),), "2026-03-01T00:00:00Z", "2026-03-02T00:00:00Z"),
+             Posture("opa", (Control("deny-egress", False),), "2026-03-02T00:00:00Z"))
+out: Change.WEAKENED
 ```
 
 ## Interface
