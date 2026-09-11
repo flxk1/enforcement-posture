@@ -2,7 +2,7 @@
 
 ## Conformance
 
-`conformance/vectors.json` is the specification: 18 language-agnostic vectors, each an input and
+`conformance/vectors.json` is the specification: 22 language-agnostic vectors, each an input and
 the result any implementation must produce. `conformance/check_vectors.py` checks this one.
 
 ```bash
