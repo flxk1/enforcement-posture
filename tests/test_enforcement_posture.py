@@ -44,7 +44,7 @@ def canon(obj) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
-def posture(*, engine="rvnd", allowlist=True, divergence="advisory",
+def posture(*, engine="engine", allowlist=True, divergence="advisory",
             frm="2026-01-01T00:00:00Z", to=None) -> Posture:
     return Posture(
         engine=engine,
@@ -83,8 +83,8 @@ class KeyMixin(unittest.TestCase):
 
 class TestPostureIdentity(unittest.TestCase):
     def test_stable_under_control_order(self):
-        a = Posture("rvnd", (Control("x", True), Control("y", False)), "2026-01-01T00:00:00Z")
-        b = Posture("rvnd", (Control("y", False), Control("x", True)), "2026-01-01T00:00:00Z")
+        a = Posture("engine", (Control("x", True), Control("y", False)), "2026-01-01T00:00:00Z")
+        b = Posture("engine", (Control("y", False), Control("x", True)), "2026-01-01T00:00:00Z")
         self.assertEqual(posture_id(a, canonicalize=canon), posture_id(b, canonicalize=canon))
 
     def test_ignores_interval_so_a_reattestation_is_not_a_split(self):
@@ -137,7 +137,7 @@ class TestPartialOrder(unittest.TestCase):
         )
 
     def test_differing_control_sets_are_incomparable(self):
-        fewer = Posture("rvnd", (Control("folder_allowlist", True),), "2026-01-01T00:00:00Z")
+        fewer = Posture("engine", (Control("folder_allowlist", True),), "2026-01-01T00:00:00Z")
         self.assertIs(compare(fewer, posture()), Change.INCOMPARABLE)
 
     def test_different_engines_are_incomparable(self):
@@ -415,14 +415,14 @@ class TestExposure(unittest.TestCase):
 
     def test_a_hardened_posture_counts_as_at_or_above(self):
         hardened = Posture(
-            "rvnd",
+            "engine",
             (Control("folder_allowlist", True), Control("host_divergence", True, "advisory"), Control("extra", True)),
             "2026-03-01T00:00:00Z",
         )
         # Same control set as the baseline is required for comparability, so compare
         # against a baseline that has the extra control switched off.
         base = Posture(
-            "rvnd",
+            "engine",
             (Control("folder_allowlist", True), Control("host_divergence", True, "advisory"), Control("extra", False)),
             "2026-03-01T00:00:00Z",
         )
@@ -451,7 +451,7 @@ class TestExposure(unittest.TestCase):
 
     def test_an_incomparable_posture_is_indeterminate_not_weakened(self):
         """A different control set cannot be scored against the baseline either way."""
-        different = Posture("rvnd", (Control("something_else", True),), "2026-03-01T00:00:00Z")
+        different = Posture("engine", (Control("something_else", True),), "2026-03-01T00:00:00Z")
         result = exposure(
             posture(), [different],
             since="2026-03-01T00:00:00Z", until="2026-03-31T00:00:00Z", canonicalize=canon,
@@ -562,7 +562,7 @@ class TestAttestVerify(KeyMixin):
         self.assertFalse(report.algorithm_stated)
 
     def test_a_posture_asserting_no_controls_attests_nothing(self):
-        empty = Posture("rvnd", (), "2026-01-01T00:00:00Z")
+        empty = Posture("engine", (), "2026-01-01T00:00:00Z")
         report = verify(
             attest(empty, WINDOW, canonicalize=canon, sign=self.sign),
             canonicalize=canon,

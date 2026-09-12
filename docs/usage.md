@@ -35,10 +35,10 @@ def verify_sig(b, s):
     try: pub.verify(s, b); return True
     except Exception: return False
 
-strict = Posture("rvnd",
+strict = Posture("engine",
     (Control("folder_allowlist", True), Control("host_divergence", True, "hard-fail")),
     "2026-03-01T00:00:00Z", "2026-03-15T00:00:00Z")
-relaxed = Posture("rvnd",
+relaxed = Posture("engine",
     (Control("folder_allowlist", False), Control("host_divergence", True, "hard-fail")),
     "2026-03-15T00:00:00Z")
 window = EvidenceWindow("chain:ws-1", "2026-03-01T00:00:00Z", "2026-03-31T00:00:00Z", "a" * 64)
@@ -64,7 +64,7 @@ A conformity projection over March cannot be rendered under one posture, so `cov
 from enforcement_posture import exposure
 
 def at(frm, to=None, allowlist=True):
-    return Posture("rvnd",
+    return Posture("engine",
         (Control("folder_allowlist", allowlist), Control("host_divergence", True, "hard-fail")),
         frm, to)
 
