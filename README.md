@@ -27,7 +27,7 @@ out: Change.WEAKENED
 
 ## Interface
 
-- `Posture(engine, controls, effective_from, effective_to=None)`, `Control(name, enabled, mode=None, weakens_when_enabled=False, quantity=None)`, `EvidenceWindow(log_id, start, end, digest)`
+- `Posture(engine, controls, effective_from, effective_to=None)`, `Control(name, enabled, mode=None, quantity=None, weakens_when_enabled=False)`, `EvidenceWindow(log_id, start, end, digest)`
 - `attest(posture, window, …)` -> DSSE envelope; `verify(envelope, …)` -> `Report(ok, findings, posture, window, algorithm)`
 - `compare(a, b, …)` -> UNCHANGED, HARDENED, WEAKENED, INCOMPARABLE (partial order)
 - `coverage(window, postures, …)` -> COVERED, SPLIT, UNCOVERED
@@ -40,6 +40,10 @@ Assurance artifact, pillar "enforcement state" of [governance-certification](htt
 ## Status
 
 0.5.1 · 63 tests · 22 conformance vectors · Python ≥ 3.10
+
+## How this is made
+
+The code and documentation are written with Loomground agents running on Claude (Anthropic). The maintainer reads and corrects all of it.
 
 ## License
 

@@ -94,7 +94,7 @@ Time splits three ways: at-or-above baseline, weakened, and indeterminate. A pos
 
 | call | returns |
 |---|---|
-| `Control(name, enabled, mode=None, weakens_when_enabled=False, quantity=None)` | one control; set the flag for exemptions |
+| `Control(name, enabled, mode=None, quantity=None, weakens_when_enabled=False)` | one control; set the flag for exemptions |
 | `attest(posture, window, …)` | DSSE envelope wrapping an in-toto Statement |
 | `verify(envelope, …)` | `Report(ok, findings, posture, window, algorithm)` |
 | `compare(a, b, mode_order=None, quantity_order=None)` | `UNCHANGED` · `HARDENED` · `WEAKENED` · `INCOMPARABLE` |
